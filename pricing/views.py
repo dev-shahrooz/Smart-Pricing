@@ -2,8 +2,7 @@ from collections import defaultdict
 from typing import List
 
 from django.contrib import messages
-from django.http import HttpResponse
-from django.shortcuts import render
+from django.shortcuts import redirect, render
 
 from .bom_loader import BomCsvError, load_bom_from_csv
 from .domain_models import (
@@ -23,7 +22,7 @@ from .state import BOM_STORE
 
 
 def home(request):
-    return HttpResponse("Smart Pricing Engine")
+    return redirect("pricing_form")
 
 
 def bom_upload_view(request):
