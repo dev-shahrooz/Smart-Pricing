@@ -14,6 +14,40 @@ from .pricing_engine import (
 from .state import BOM_STORE
 
 
+def ai_insights_view(request):
+    """
+    Render the AI Pricing Insights page.
+    For now, the GET handler just shows the template with product codes (if any).
+    Later we will extend POST to run ML logic.
+    """
+    product_codes = []
+    try:
+        from .state import get_all_product_codes
+
+        product_codes = get_all_product_codes()
+    except Exception:
+        # If state or BOM is not available yet, keep an empty list
+        product_codes = []
+
+    if request.method == "GET":
+        return render(
+            request,
+            "pricing/ai_insights.html",
+            {
+                "product_codes": product_codes,
+            },
+        )
+
+    # For now, handle POST the same; we will enhance later
+    return render(
+        request,
+        "pricing/ai_insights.html",
+        {
+            "product_codes": product_codes,
+        },
+    )
+
+
 def home(request):
     return redirect("pricing_form")
 
