@@ -4,4 +4,5 @@ from . import views
 
 urlpatterns = [
     path('', views.home, name='home'),
+    path('bom-upload/', views.bom_upload_view, name='bom_upload'),
 ]
