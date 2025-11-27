@@ -241,29 +241,76 @@
                     const profitData = {{ profit_grid|safe }};
 
                     const canvas = document.getElementById('profitChart');
-                    if (canvas && canvas.getContext) {
-                        const ctx = canvas.getContext('2d');
-                        const maxProfit = Math.max.apply(null, profitData);
-                        const minPrice = Math.min.apply(null, priceData);
-                        const maxPrice = Math.max.apply(null, priceData);
+                    const ctx = canvas.getContext('2d');
 
-                        function normX(p) {
-                            return (p - minPrice) / (maxPrice - minPrice + 1e-9) * (canvas.width - 40) + 20;
-                        }
-                        function normY(v) {
-                            return canvas.height - ((v / (maxProfit + 1e-9)) * (canvas.height - 40) + 20);
-                        }
+                    // Chart padding
+                    const padLeft = 50;
+                    const padRight = 20;
+                    const padTop = 20;
+                    const padBottom = 40;
 
-                        ctx.clearRect(0, 0, canvas.width, canvas.height);
-                        ctx.beginPath();
-                        for (let i = 0; i < priceData.length; i++) {
-                            const x = normX(priceData[i]);
-                            const y = normY(profitData[i]);
-                            if (i === 0) ctx.moveTo(x, y);
-                            else ctx.lineTo(x, y);
-                        }
-                        ctx.stroke();
+                    const W = canvas.width;
+                    const H = canvas.height;
+
+                    const minPrice = Math.min(...priceData);
+                    const maxPrice = Math.max(...priceData);
+                    const maxProfit = Math.max(...profitData);
+                    const minProfit = Math.min(...profitData);
+
+                    // Mapping functions
+                    function xScale(p) {
+                        return padLeft + (p - minPrice) / (maxPrice - minPrice) * (W - padLeft - padRight);
                     }
+
+                    function yScale(v) {
+                        // Higher profit should be higher on canvas → invert Y
+                        return H - padBottom - (v - minProfit) / (maxProfit - minProfit) * (H - padTop - padBottom);
+                    }
+
+                    // Clear canvas
+                    ctx.clearRect(0, 0, W, H);
+
+                    // Draw axes
+                    ctx.strokeStyle = "#444";
+                    ctx.lineWidth = 1;
+                    ctx.beginPath();
+                    ctx.moveTo(padLeft, padTop);
+                    ctx.lineTo(padLeft, H - padBottom);
+                    ctx.lineTo(W - padRight, H - padBottom);
+                    ctx.stroke();
+
+                    // Draw profit curve
+                    ctx.strokeStyle = "#0070f3";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    for (let i = 0; i < priceData.length; i++) {
+                        const x = xScale(priceData[i]);
+                        const y = yScale(profitData[i]);
+                        if (i === 0) ctx.moveTo(x, y);
+                        else ctx.lineTo(x, y);
+                    }
+                    ctx.stroke();
+
+                    // Mark optimal point
+                    const maxIdx = profitData.indexOf(Math.max(...profitData));
+                    const optX = xScale(priceData[maxIdx]);
+                    const optY = yScale(profitData[maxIdx]);
+
+                    ctx.fillStyle = "#ff0000";
+                    ctx.beginPath();
+                    ctx.arc(optX, optY, 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Labels
+                    ctx.fillStyle = "#000";
+                    ctx.font = "12px sans-serif";
+                    ctx.fillText("Price (IRR)", W / 2 - 30, H - 10);
+
+                    ctx.save();
+                    ctx.translate(15, H / 2);
+                    ctx.rotate(-Math.PI / 2);
+                    ctx.fillText("Profit (IRR)", 0, 0);
+                    ctx.restore();
                 </script>
             {% endif %}
         {% endif %}
