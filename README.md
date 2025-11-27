@@ -23,3 +23,20 @@ This project is a Django-based Smart Pricing Engine designed for manufacturing c
 
 ## Future Work
 Phase 2 will introduce machine learning modules under `pricing/ml/` to enhance pricing accuracy and automation.
+
+## Machine Learning Features
+- Demand elasticity modeling from sales CSV.
+- Optimal price recommendation based on profit maximization.
+- Optional USD rate forecasting.
+- Ensemble pricing suggestions.
+
+## ML Data Formats
+- Sales CSV: `month,product_code,price,units_sold`
+- USD CSV: `date,usd_rate`
+
+## ML Commands
+- `python manage.py train_elasticity <sales_csv_path> <cost_per_unit>`
+- `python manage.py train_usd_forecast <usd_csv_path>`
+
+## AI Insights Page
+The AI Insights page surfaces the trained models' recommendations, including elasticity estimates, price suggestions, and USD rate projections. Use it to explore forecast results and adjust pricing decisions directly from the UI.
