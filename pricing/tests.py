@@ -1,4 +1,5 @@
 import io
+import io
 
 from django.test import TestCase
 
@@ -11,7 +12,6 @@ from .domain_models import (
     InventoryParams,
     LogisticsParams,
     ManufacturingParams,
-    MarketParams,
 )
 from .pricing_engine import (
     compute_cost_breakdown,
@@ -87,11 +87,14 @@ class PricingEngineTests(TestCase):
             logistics_cost_irr=1_165_000,
             inventory_cost_irr=65_000,
         )
-        finance = FinanceParams(exchange_rate_now=50_000, target_margin_percent=20)
-        market = MarketParams(competitor_price_avg=2_000_000)
+        finance = FinanceParams(
+            exchange_rate_now=50_000,
+            target_margin_percent=20,
+            competitor_price_avg=2_000_000,
+        )
 
         price_data = compute_recommended_price(
-            cost_breakdown=cost_breakdown, finance=finance, market=market
+            cost_breakdown=cost_breakdown, finance=finance
         )
 
         self.assertAlmostEqual(price_data["final_suggested_price"], 2_256_720)
@@ -105,11 +108,14 @@ class PricingEngineTests(TestCase):
             logistics_cost_irr=1_165_000,
             inventory_cost_irr=65_000,
         )
-        finance = FinanceParams(exchange_rate_now=50_000, target_margin_percent=20)
-        market = MarketParams(competitor_price_avg=2_500_000)
+        finance = FinanceParams(
+            exchange_rate_now=50_000,
+            target_margin_percent=20,
+            competitor_price_avg=2_500_000,
+        )
 
         price_data = compute_recommended_price(
-            cost_breakdown=cost_breakdown, finance=finance, market=market
+            cost_breakdown=cost_breakdown, finance=finance
         )
 
         self.assertEqual(price_data["final_suggested_price"], 2_500_000)
@@ -123,40 +129,42 @@ class PricingEngineTests(TestCase):
             logistics_cost_irr=600_000,
             inventory_cost_irr=50_000,
         )
-        finance = FinanceParams(exchange_rate_now=50_000, target_margin_percent=10)
-        market = MarketParams(competitor_price_avg=1_000_000)
+        finance = FinanceParams(
+            exchange_rate_now=50_000,
+            target_margin_percent=10,
+            competitor_price_avg=1_000_000,
+        )
         elasticity_result = ElasticityResult(
-            elasticity=-1.2, optimal_price_ml=900_000.0, max_profit_ml=400_000.0
+            elasticity=-1.2, optimal_price=900_000.0, max_profit=400_000.0
         )
 
         price_data = compute_recommended_price(
             cost_breakdown=cost_breakdown,
             finance=finance,
-            market=market,
             elasticity_result=elasticity_result,
         )
 
         self.assertEqual(price_data["elasticity"], elasticity_result.elasticity)
-        self.assertEqual(price_data["optimal_price_ml"], elasticity_result.optimal_price_ml)
-        self.assertEqual(price_data["max_profit_ml"], elasticity_result.max_profit_ml)
+        self.assertEqual(price_data["optimal_price_ml"], elasticity_result.optimal_price)
+        self.assertEqual(price_data["max_profit_ml"], elasticity_result.max_profit)
 
     def test_merge_cost_plus_and_ml_price_with_elasticity(self):
         cost_plus_price = 2_000_000.0
         elasticity_result = ElasticityResult(
-            elasticity=-1.5, optimal_price_ml=1_800_000.0, max_profit_ml=750_000.0
+            elasticity=-1.5, optimal_price=1_800_000.0, max_profit=750_000.0
         )
 
         merged = merge_cost_plus_and_ml_price(cost_plus_price, elasticity_result)
 
         self.assertIn("optimal_price_ml", merged)
-        self.assertAlmostEqual(merged["optimal_price_ml"], elasticity_result.optimal_price_ml)
+        self.assertAlmostEqual(merged["optimal_price_ml"], elasticity_result.optimal_price)
         self.assertAlmostEqual(
-            merged["final_suggested_price"], (cost_plus_price + elasticity_result.optimal_price_ml) / 2
+            merged["final_suggested_price"],
+            (0.3 * cost_plus_price) + (0.7 * elasticity_result.optimal_price),
         )
 
     def test_simulate_prices_for_exchange_rates(self):
         rates = [50_000, 60_000, 70_000]
-        market = MarketParams(competitor_price_avg=0)
         finance = FinanceParams(exchange_rate_now=50_000, target_margin_percent=10)
 
         scenarios = simulate_prices_for_exchange_rates(
@@ -165,7 +173,6 @@ class PricingEngineTests(TestCase):
             manufacturing=self.manufacturing,
             logistics=self.logistics,
             inventory=self.inventory,
-            market=market,
             finance=finance,
         )
 

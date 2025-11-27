@@ -6,14 +6,13 @@ from typing import Iterable
 from .domain_models import (
     BomItem,
     CostBreakdown,
-    ElasticityResult,
     FinanceParams,
     InventoryParams,
     LogisticsParams,
     ManufacturingParams,
-    MarketParams,
     ScenarioResult,
 )
+from .ml.demand_elasticity import ElasticityResult
 
 
 def compute_cost_breakdown(
@@ -57,13 +56,12 @@ def compute_cost_breakdown(
 def compute_recommended_price(
     cost_breakdown: CostBreakdown,
     finance: FinanceParams,
-    market: MarketParams,
     elasticity_result: ElasticityResult | None = None,
 ) -> dict[str, float]:
     """Calculate pricing recommendations and related metrics."""
 
     base_price = cost_breakdown.total_cost_irr * (1 + finance.target_margin_percent / 100)
-    competitor_anchor = market.competitor_price_avg if market.competitor_price_avg else 0
+    competitor_anchor = getattr(finance, "competitor_price_avg", 0) or 0
 
     cost_plus_price = max(base_price, competitor_anchor)
 
@@ -76,8 +74,8 @@ def compute_recommended_price(
         result.update(
             {
                 "elasticity": elasticity_result.elasticity,
-                "optimal_price_ml": elasticity_result.optimal_price_ml,
-                "max_profit_ml": elasticity_result.max_profit_ml,
+                "optimal_price_ml": elasticity_result.optimal_price,
+                "max_profit_ml": elasticity_result.max_profit,
             }
         )
 
@@ -97,14 +95,33 @@ def merge_cost_plus_and_ml_price(
 
     result: dict[str, float] = {"cost_plus_price": cost_plus_price}
 
-    if elasticity_result is None:
-        result["final_suggested_price"] = cost_plus_price
-        return result
+    if elasticity_result is not None:
+        result["optimal_price_ml"] = elasticity_result.optimal_price
 
-    result["optimal_price_ml"] = elasticity_result.optimal_price_ml
-    result["final_suggested_price"] = (cost_plus_price + elasticity_result.optimal_price_ml) / 2
+    result["final_suggested_price"] = choose_final_price(cost_plus_price, elasticity_result)
 
     return result
+
+
+def choose_final_price(
+    cost_plus_price: float,
+    elasticity_result: ElasticityResult | None,
+) -> float:
+    """
+    If elasticity_result is None: return cost_plus_price.
+    Otherwise, return a compromise between cost-plus and ML optimal price,
+    e.g. average of the two or leaning 70% ML / 30% cost-plus.
+    """
+
+    if elasticity_result is None:
+        return cost_plus_price
+
+    weight_ml = 0.7
+    weight_cost_plus = 0.3
+
+    return (weight_ml * elasticity_result.optimal_price) + (
+        weight_cost_plus * cost_plus_price
+    )
 
 
 def simulate_prices_for_exchange_rates(
@@ -114,7 +131,6 @@ def simulate_prices_for_exchange_rates(
     manufacturing: ManufacturingParams,
     logistics: LogisticsParams,
     inventory: InventoryParams,
-    market: MarketParams,
     finance: FinanceParams,
 ) -> list[ScenarioResult]:
     """Run price simulations for different exchange rates."""
@@ -132,6 +148,7 @@ def simulate_prices_for_exchange_rates(
         finance_at_rate = FinanceParams(
             exchange_rate_now=rate,
             target_margin_percent=finance.target_margin_percent,
+            competitor_price_avg=getattr(finance, "competitor_price_avg", 0),
         )
 
         cost_breakdown = compute_cost_breakdown(
@@ -144,7 +161,6 @@ def simulate_prices_for_exchange_rates(
         recommended_price_data = compute_recommended_price(
             cost_breakdown=cost_breakdown,
             finance=finance_at_rate,
-            market=market,
         )
 
         results.append(
@@ -162,5 +178,6 @@ __all__ = [
     "compute_cost_breakdown",
     "compute_recommended_price",
     "merge_cost_plus_and_ml_price",
+    "choose_final_price",
     "simulate_prices_for_exchange_rates",
 ]

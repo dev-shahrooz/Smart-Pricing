@@ -5,14 +5,7 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 
 from .bom_loader import BomCsvError, load_bom_from_csv
-from .domain_models import (
-    BomItem,
-    FinanceParams,
-    InventoryParams,
-    LogisticsParams,
-    ManufacturingParams,
-    MarketParams,
-)
+from .domain_models import BomItem, FinanceParams, InventoryParams, LogisticsParams, ManufacturingParams
 from .pricing_engine import (
     compute_cost_breakdown,
     compute_recommended_price,
@@ -122,22 +115,16 @@ def pricing_form_view(request):
                 ),
             )
 
-            market_params = MarketParams(
-                competitor_price_avg=_require_int(
-                    request.POST.get("competitor_price_avg"),
-                    "Competitor price average",
-                ),
-                elasticity=_require_float(
-                    request.POST.get("elasticity"), "Elasticity"
-                ),
-            )
-
             finance_params = FinanceParams(
                 exchange_rate_now=_require_int(
                     request.POST.get("exchange_rate_now"), "Exchange rate now"
                 ),
                 target_margin_percent=_require_float(
                     request.POST.get("target_margin_percent"), "Target margin"
+                ),
+                competitor_price_avg=_require_int(
+                    request.POST.get("competitor_price_avg"),
+                    "Competitor price average",
                 ),
             )
         except ValueError as exc:
@@ -163,7 +150,6 @@ def pricing_form_view(request):
                 recommended_price = compute_recommended_price(
                     cost_breakdown=cost_breakdown,
                     finance=finance_params,
-                    market=market_params,
                 )
 
                 messages.success(request, "Price calculated successfully.")
@@ -276,22 +262,16 @@ def scenario_view(request):
                 ),
             )
 
-            market_params = MarketParams(
-                competitor_price_avg=_require_int(
-                    request.POST.get("competitor_price_avg"),
-                    "Competitor price average",
-                ),
-                elasticity=_require_float(
-                    request.POST.get("elasticity"), "Elasticity"
-                ),
-            )
-
             finance_params = FinanceParams(
                 exchange_rate_now=_require_int(
                     request.POST.get("exchange_rate_now"), "Exchange rate now"
                 ),
                 target_margin_percent=_require_float(
                     request.POST.get("target_margin_percent"), "Target margin"
+                ),
+                competitor_price_avg=_require_int(
+                    request.POST.get("competitor_price_avg"),
+                    "Competitor price average",
                 ),
             )
 
@@ -315,7 +295,6 @@ def scenario_view(request):
                     manufacturing=manufacturing_params,
                     logistics=logistics_params,
                     inventory=inventory_params,
-                    market=market_params,
                     finance=finance_params,
                 )
 

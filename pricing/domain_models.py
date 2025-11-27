@@ -1,6 +1,8 @@
 """Domain models for pricing inputs."""
 from dataclasses import dataclass
 
+from .ml.demand_elasticity import ElasticityResult
+
 
 @dataclass
 class ProductInfo:
@@ -42,13 +44,7 @@ class MarketParams:
 class FinanceParams:
     exchange_rate_now: int
     target_margin_percent: float
-
-
-@dataclass
-class ElasticityResult:
-    elasticity: float
-    optimal_price_ml: float
-    max_profit_ml: float
+    competitor_price_avg: float = 0
 
 
 @dataclass
