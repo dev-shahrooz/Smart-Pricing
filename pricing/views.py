@@ -61,12 +61,18 @@ def pricing_form_view(request):
     def _require_int(value: str | None, field_name: str) -> int:
         if value is None or value == "":
             raise ValueError(f"{field_name} is required.")
-        return int(value)
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field_name} must be a whole number.") from exc
 
     def _require_float(value: str | None, field_name: str) -> float:
         if value is None or value == "":
             raise ValueError(f"{field_name} is required.")
-        return float(value)
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field_name} must be a number.") from exc
 
     if request.method == "POST":
         product_code = request.POST.get("product_code") or ""
@@ -188,12 +194,18 @@ def scenario_view(request):
     def _require_int(value: str | None, field_name: str) -> int:
         if value is None or value == "":
             raise ValueError(f"{field_name} is required.")
-        return int(value)
+        try:
+            return int(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field_name} must be a whole number.") from exc
 
     def _require_float(value: str | None, field_name: str) -> float:
         if value is None or value == "":
             raise ValueError(f"{field_name} is required.")
-        return float(value)
+        try:
+            return float(value)
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"{field_name} must be a number.") from exc
 
     def _parse_exchange_rates(raw_value: str | None) -> list[int]:
         if raw_value is None or raw_value.strip() == "":
