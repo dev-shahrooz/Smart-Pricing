@@ -10,6 +10,9 @@ class SalesCsvError(Exception):
     """Custom exception for sales CSV parsing errors."""
 
 
+EXPECTED_HEADERS = ["month", "product_code", "price", "units_sold"]
+
+
 @dataclass
 class SalesRecord:
     month: str  # YYYY-MM
@@ -20,7 +23,7 @@ class SalesRecord:
 
 def _is_header_row(row: List[str]) -> bool:
     normalized = [value.strip().lower() for value in row]
-    return normalized == ["month", "product_code", "price", "units_sold"]
+    return normalized == EXPECTED_HEADERS
 
 
 def load_sales_from_csv(file_obj: IO) -> Dict[str, List[SalesRecord]]:
@@ -31,6 +34,7 @@ def load_sales_from_csv(file_obj: IO) -> Dict[str, List[SalesRecord]]:
     The expected CSV format is:
     month,product_code,price,units_sold
     2024-01,USB-CH32,420000,580
+    2024-02,USB-CH32,450000,520
     """
 
     reader = csv.reader(file_obj)
