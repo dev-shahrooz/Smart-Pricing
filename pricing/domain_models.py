@@ -69,3 +69,10 @@ class CostBreakdown:
             + self.logistics_cost_irr
             + self.inventory_cost_irr
         )
+
+
+@dataclass
+class ScenarioResult:
+    exchange_rate: int
+    total_cost_irr: float
+    recommended_price_irr: float

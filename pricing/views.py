@@ -13,7 +13,11 @@ from .domain_models import (
     ManufacturingParams,
     MarketParams,
 )
-from .pricing_engine import compute_cost_breakdown, compute_recommended_price
+from .pricing_engine import (
+    compute_cost_breakdown,
+    compute_recommended_price,
+    simulate_prices_for_exchange_rates,
+)
 from .state import BOM_STORE
 
 
@@ -122,3 +126,97 @@ def pricing_form_view(request):
         )
 
     return render(request, "pricing/pricing_form.html", context)
+
+
+def scenario_view(request):
+    context: dict[str, object] = {
+        "product_codes": sorted(BOM_STORE.keys()),
+        "form_values": {},
+        "scenario_results": [],
+        "exchange_rates_raw": "",
+    }
+
+    def _to_int(value: str | None, default: int = 0) -> int:
+        try:
+            return int(value) if value is not None and value != "" else default
+        except ValueError:
+            return default
+
+    def _to_float(value: str | None, default: float = 0.0) -> float:
+        try:
+            return float(value) if value is not None and value != "" else default
+        except ValueError:
+            return default
+
+    def _parse_exchange_rates(raw_value: str | None) -> list[int]:
+        if not raw_value:
+            return []
+
+        rates: list[int] = []
+        for part in raw_value.split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                rates.append(int(part))
+            except ValueError:
+                continue
+        return rates
+
+    if request.method == "POST":
+        product_code = request.POST.get("product_code") or ""
+        exchange_rates_raw = request.POST.get("exchange_rates_raw") or ""
+
+        manufacturing_params = ManufacturingParams(
+            smd_cost_per_component=_to_int(request.POST.get("smd_cost_per_component")),
+            tht_cost_per_component=_to_int(request.POST.get("tht_cost_per_component")),
+            assembly_time_min=_to_float(request.POST.get("assembly_time_min")),
+            qc_test_time_min=_to_float(request.POST.get("qc_test_time_min")),
+            worker_hour_cost=_to_int(request.POST.get("worker_hour_cost")),
+        )
+
+        logistics_params = LogisticsParams(
+            shipping_cost_usd=_to_float(request.POST.get("shipping_cost_usd")),
+            custom_clearance_irr=_to_int(request.POST.get("custom_clearance_irr")),
+            duty_percent=_to_float(request.POST.get("duty_percent")),
+            exchange_rate_buy=_to_int(request.POST.get("exchange_rate_buy")),
+        )
+
+        inventory_params = InventoryParams(
+            inventory_days=_to_int(request.POST.get("inventory_days")),
+            capital_cost_rate=_to_float(request.POST.get("capital_cost_rate")),
+        )
+
+        market_params = MarketParams(
+            competitor_price_avg=_to_int(request.POST.get("competitor_price_avg")),
+            elasticity=_to_float(request.POST.get("elasticity")),
+        )
+
+        finance_params = FinanceParams(
+            exchange_rate_now=_to_int(request.POST.get("exchange_rate_now")),
+            target_margin_percent=_to_float(request.POST.get("target_margin_percent")),
+        )
+
+        exchange_rates = _parse_exchange_rates(exchange_rates_raw)
+        bom_items = BOM_STORE.get(product_code, [])
+
+        scenario_results = simulate_prices_for_exchange_rates(
+            bom_items=bom_items,
+            exchange_rates=exchange_rates,
+            manufacturing=manufacturing_params,
+            logistics=logistics_params,
+            inventory=inventory_params,
+            market=market_params,
+            finance=finance_params,
+        )
+
+        context.update(
+            {
+                "selected_product_code": product_code,
+                "scenario_results": scenario_results,
+                "form_values": request.POST,
+                "exchange_rates_raw": exchange_rates_raw,
+            }
+        )
+
+    return render(request, "pricing/scenario.html", context)
