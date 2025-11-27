@@ -40,3 +40,19 @@ Phase 2 will introduce machine learning modules under `pricing/ml/` to enhance p
 
 ## AI Insights Page
 The AI Insights page surfaces the trained models' recommendations, including elasticity estimates, price suggestions, and USD rate projections. Use it to explore forecast results and adjust pricing decisions directly from the UI.
+
+## AI & Machine Learning Features
+- **Demand elasticity modeling:** Train elasticity models directly from sales CSVs with the format `month,product_code,price,units_sold` to understand how price changes impact demand.
+- **Optimal price recommendation:** Use profit maximization to compute an ML-driven optimal selling price for each product.
+
+### Using the AI Insights Page
+1. Upload a BOM CSV (already described above) so the system knows the component costs.
+2. Navigate to the **AI Insights** page from the UI.
+3. Upload the sales CSV for the product you want to analyze.
+4. Enter the basic cost parameters for the product.
+5. Review the generated insights:
+   - **Cost-plus price** based on the entered costs.
+   - **ML optimal price** derived from profit maximization.
+   - **Elasticity** estimate from the trained model.
+   - **Final suggested price** combining elasticity and margin considerations.
+   - **Profit curve chart** showing profit across price points.
