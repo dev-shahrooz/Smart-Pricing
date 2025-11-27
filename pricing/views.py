@@ -479,10 +479,18 @@ def ai_insights_view(request):
                     )
                     final_price = base_recommended_price
                     if elasticity_result is not None:
-                        # Blend cost-plus and ML price 50/50 as a simple compromise
-                        final_price = (
-                            base_recommended_price + elasticity_result.optimal_price
-                        ) / 2
+                        if elasticity_result.all_negative:
+                            messages.warning(
+                                request,
+                                "All candidate prices in the sales history are below unit cost; "
+                                "no profitable price range was found.",
+                            )
+                            final_price = base_recommended_price
+                        else:
+                            # Blend cost-plus and ML price 50/50 as a simple compromise
+                            final_price = (
+                                base_recommended_price + elasticity_result.optimal_price
+                            ) / 2
 
                     context.update(
                         {

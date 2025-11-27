@@ -224,6 +224,9 @@
 
         {% if elasticity_result %}
             <h2>Elasticity & ML Optimal Price</h2>
+            {% if elasticity_result.all_negative %}
+                <p><strong>Warning:</strong> ML found no profitable price in the observed range.</p>
+            {% endif %}
             <p>
                 Elasticity: <strong>{{ elasticity_result.elasticity|floatformat:2 }}</strong><br>
                 ML Optimal Price: <strong>{{ elasticity_result.optimal_price|floatformat:0 }}</strong> IRR<br>

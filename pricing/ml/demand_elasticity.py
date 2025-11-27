@@ -27,6 +27,7 @@ class ElasticityResult:
     max_profit: float
     price_grid: list[float]
     profit_grid: list[float]
+    all_negative: bool = False
 
 
 def fit_elasticity_for_product(records: List[SalesRecord]) -> ElasticityModel:
@@ -101,6 +102,7 @@ def compute_optimal_price(
     optimal_price = float(price_grid[max_idx])
     max_profit = float(profits[max_idx])
     predicted_units = float(units_list[max_idx])
+    all_negative = max_profit < 0
 
     return ElasticityResult(
         product_code=model.product_code,
@@ -110,6 +112,7 @@ def compute_optimal_price(
         max_profit=max_profit,
         price_grid=[float(p) for p in price_grid],
         profit_grid=[float(v) for v in profits],
+        all_negative=all_negative,
     )
 
 
