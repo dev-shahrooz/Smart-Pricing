@@ -80,13 +80,16 @@
     {% block extra_head %}{% endblock %}
 </head>
 <body>
-    <header class="site-header">
-        <nav class="nav-bar">
-            <a href="{% url 'bom_upload' %}">BOM Upload</a>
-            <a href="{% url 'pricing_form' %}">Pricing</a>
-            <a href="{% url 'scenario' %}">USD Scenario</a>
-            <a href="{% url 'ai_insights' %}">AI Insights</a>
-        </nav>
+    <header style="background:#0a4fa8; color:#fff; padding:12px 0;">
+        <div style="max-width:960px; margin:0 auto; display:flex; justify-content:space-between; align-items:center;">
+            <div style="font-weight:bold;">Smart Pricing Engine</div>
+            <nav style="display:flex; gap:12px;">
+                <a href="{% url 'bom_upload' %}" style="color:#fff; text-decoration:none;">BOM Upload</a>
+                <a href="{% url 'pricing_form' %}" style="color:#fff; text-decoration:none;">Pricing</a>
+                <a href="{% url 'scenario' %}" style="color:#fff; text-decoration:none;">USD Scenario</a>
+                <a href="{% url 'ai_insights' %}" style="color:#fff; text-decoration:none;">AI Insights</a>
+            </nav>
+        </div>
     </header>
 
     <div class="messages">

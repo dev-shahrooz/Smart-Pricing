@@ -5,40 +5,26 @@ from django.contrib import messages
 from django.shortcuts import redirect, render
 
 from .bom_loader import BomCsvError, load_bom_from_csv
-from .domain_models import BomItem, FinanceParams, InventoryParams, LogisticsParams, ManufacturingParams
+from .domain_models import (
+    BomItem,
+    FinanceParams,
+    InventoryParams,
+    LogisticsParams,
+    ManufacturingParams,
+    MarketParams,
+)
+from .ml.demand_elasticity import (
+    ElasticityResult,
+    compute_optimal_price,
+    fit_elasticity_for_product,
+)
 from .pricing_engine import (
     compute_cost_breakdown,
     compute_recommended_price,
     simulate_prices_for_exchange_rates,
 )
-from .state import BOM_STORE, get_all_product_codes, set_bom_store
-
-
-def ai_insights_view(request):
-    """
-    Render the AI Pricing Insights page.
-    For now, the GET handler just shows the template with product codes (if any).
-    Later we will extend POST to run ML logic.
-    """
-    product_codes = get_all_product_codes()
-
-    if request.method == "GET":
-        return render(
-            request,
-            "pricing/ai_insights.html",
-            {
-                "product_codes": product_codes,
-            },
-        )
-
-    # For now, handle POST the same; we will enhance later
-    return render(
-        request,
-        "pricing/ai_insights.html",
-        {
-            "product_codes": product_codes,
-        },
-    )
+from .services.sales_csv_loader import SalesCsvError, load_sales_from_csv
+from .state import BOM_STORE, get_all_product_codes, get_bom_for_product, set_bom_store
 
 
 def home(request):
@@ -338,3 +324,188 @@ def scenario_view(request):
         context.setdefault("form_values", request.POST)
 
     return render(request, "pricing/scenario.html", context)
+
+
+def ai_insights_view(request):
+    """
+    AI Pricing Insights:
+    - Select product
+    - Optional: upload sales CSV
+    - Enter cost/finance params
+    - See cost-plus price, ML optimal price (if sales provided), and profit curve.
+    """
+    context: dict[str, object] = {
+        "product_codes": get_all_product_codes(),
+        "form_values": {},
+        "elasticity_result": None,
+        "cost_breakdown": None,
+        "recommended_price": None,
+        "final_suggested_price": None,
+        "price_grid": [],
+        "profit_grid": [],
+    }
+
+    def _require_int(value: str | None, field_name: str) -> int:
+        if value is None or value == "":
+            raise ValueError(f"{field_name} is required.")
+        return int(value)
+
+    def _require_float(value: str | None, field_name: str) -> float:
+        if value is None or value == "":
+            raise ValueError(f"{field_name} is required.")
+        return float(value)
+
+    if request.method == "POST":
+        product_code = request.POST.get("product_code") or ""
+        context["form_values"] = request.POST
+        context["selected_product_code"] = product_code
+
+        if not product_code:
+            messages.error(request, "Please select a product code.")
+        else:
+            bom_items = get_bom_for_product(product_code)
+            if not bom_items:
+                messages.error(
+                    request,
+                    "No BOM found for this product. Please upload a BOM first.",
+                )
+            else:
+                try:
+                    manufacturing_params = ManufacturingParams(
+                        smd_cost_per_component=_require_int(
+                            request.POST.get("smd_cost_per_component"),
+                            "SMD cost per component",
+                        ),
+                        tht_cost_per_component=_require_int(
+                            request.POST.get("tht_cost_per_component"),
+                            "THT cost per component",
+                        ),
+                        assembly_time_min=_require_float(
+                            request.POST.get("assembly_time_min"), "Assembly time"
+                        ),
+                        qc_test_time_min=_require_float(
+                            request.POST.get("qc_test_time_min"), "QC test time"
+                        ),
+                        worker_hour_cost=_require_int(
+                            request.POST.get("worker_hour_cost"), "Worker hour cost"
+                        ),
+                    )
+
+                    logistics_params = LogisticsParams(
+                        shipping_cost_usd=_require_float(
+                            request.POST.get("shipping_cost_usd"),
+                            "Shipping cost (USD)",
+                        ),
+                        custom_clearance_irr=_require_int(
+                            request.POST.get("custom_clearance_irr"),
+                            "Custom clearance (IRR)",
+                        ),
+                        duty_percent=_require_float(
+                            request.POST.get("duty_percent"),
+                            "Duty percent",
+                        ),
+                        exchange_rate_buy=_require_int(
+                            request.POST.get("exchange_rate_buy"),
+                            "Exchange rate buy",
+                        ),
+                    )
+
+                    inventory_params = InventoryParams(
+                        inventory_days=_require_int(
+                            request.POST.get("inventory_days"), "Inventory days"
+                        ),
+                        capital_cost_rate=_require_float(
+                            request.POST.get("capital_cost_rate"),
+                            "Capital cost rate",
+                        ),
+                    )
+
+                    market_params = MarketParams(
+                        competitor_price_avg=_require_int(
+                            request.POST.get("competitor_price_avg")
+                            or "0",
+                            "Competitor price avg",
+                        ),
+                        elasticity=None,
+                    )
+
+                    finance_params = FinanceParams(
+                        exchange_rate_now=_require_int(
+                            request.POST.get("exchange_rate_now"),
+                            "Exchange rate now",
+                        ),
+                        target_margin_percent=_require_float(
+                            request.POST.get("target_margin_percent"),
+                            "Target margin percent",
+                        ),
+                    )
+                except ValueError as exc:
+                    messages.error(request, str(exc))
+                else:
+                    # Base cost and cost-plus price
+                    cost_breakdown = compute_cost_breakdown(
+                        bom_items=bom_items,
+                        manufacturing=manufacturing_params,
+                        logistics=logistics_params,
+                        inventory=inventory_params,
+                    )
+                    recommended_details = compute_recommended_price(
+                        cost_breakdown=cost_breakdown,
+                        finance=finance_params,
+                        market=market_params,
+                    )
+
+                    elasticity_result: ElasticityResult | None = None
+
+                    # Optional: sales CSV for ML
+                    sales_file = request.FILES.get("sales_file")
+                    if sales_file:
+                        try:
+                            sales_mapping = load_sales_from_csv(sales_file)
+                            records = sales_mapping.get(product_code, [])
+                            if records:
+                                model = fit_elasticity_for_product(records)
+                                # Approximate cost per unit from cost breakdown / units ~= 1
+                                # For a first version, we assume cost per unit = cost_breakdown.total_cost_irr
+                                elasticity_result = compute_optimal_price(
+                                    model,
+                                    cost_per_unit=cost_breakdown.total_cost_irr,
+                                )
+                            else:
+                                messages.warning(
+                                    request,
+                                    "No sales records found for this product in the CSV.",
+                                )
+                        except SalesCsvError as exc:
+                            messages.error(request, f"Sales CSV error: {exc}")
+                        except ValueError as exc:
+                            messages.error(request, f"Could not fit elasticity: {exc}")
+
+                    base_recommended_price = recommended_details.get(
+                        "final_suggested_price", 0
+                    )
+                    final_price = base_recommended_price
+                    if elasticity_result is not None:
+                        # Blend cost-plus and ML price 50/50 as a simple compromise
+                        final_price = (
+                            base_recommended_price + elasticity_result.optimal_price
+                        ) / 2
+
+                    context.update(
+                        {
+                            "cost_breakdown": cost_breakdown,
+                            "recommended_price": recommended_details.get(
+                                "cost_plus_price", base_recommended_price
+                            ),
+                            "final_suggested_price": final_price,
+                            "elasticity_result": elasticity_result,
+                        }
+                    )
+
+                    if elasticity_result is not None:
+                        context["price_grid"] = elasticity_result.price_grid
+                        context["profit_grid"] = elasticity_result.profit_grid
+
+                    messages.success(request, "AI pricing insights computed.")
+
+    return render(request, "pricing/ai_insights.html", context)

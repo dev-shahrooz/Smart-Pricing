@@ -1,76 +1,64 @@
 from __future__ import annotations
 
 import csv
-from collections import defaultdict
 from dataclasses import dataclass
-from typing import IO, Dict, List
-
-
-class SalesCsvError(Exception):
-    """Custom exception for sales CSV parsing errors."""
-
-
-EXPECTED_HEADERS = ["month", "product_code", "price", "units_sold"]
+from typing import Dict, IO, List
 
 
 @dataclass
 class SalesRecord:
-    month: str  # YYYY-MM
+    month: str          # e.g. "2024-01"
     product_code: str
-    price: int  # IRR
-    units_sold: int
+    price: int          # IRR
+    units_sold: int     # units
 
 
-def _is_header_row(row: List[str]) -> bool:
-    normalized = [value.strip().lower() for value in row]
-    return normalized == EXPECTED_HEADERS
+class SalesCsvError(Exception):
+    """Raised when the sales CSV file is invalid."""
+    pass
 
 
 def load_sales_from_csv(file_obj: IO) -> Dict[str, List[SalesRecord]]:
     """
-    Parse a sales CSV file and return a dict mapping product_code to a list of
-    SalesRecord objects.
+    Parse a sales CSV and return a mapping:
+    { product_code: [SalesRecord, ...], ... }
 
-    The expected CSV format is:
-    month,product_code,price,units_sold
-    2024-01,USB-CH32,420000,580
-    2024-02,USB-CH32,450000,520
+    Required columns:
+    - month
+    - product_code
+    - price
+    - units_sold
     """
+    text = file_obj.read().decode("utf-8") if hasattr(file_obj, "read") else file_obj
+    if isinstance(text, bytes):
+        text = text.decode("utf-8")
 
-    reader = csv.reader(file_obj)
-    sales_by_product: Dict[str, List[SalesRecord]] = defaultdict(list)
+    reader = csv.DictReader(text.splitlines())
+    required_cols = {"month", "product_code", "price", "units_sold"}
+    if not required_cols.issubset(reader.fieldnames or []):
+        missing = required_cols - set(reader.fieldnames or [])
+        raise SalesCsvError(f"Missing required columns in sales CSV: {', '.join(sorted(missing))}")
 
-    for index, row in enumerate(reader, start=1):
-        if not row or all(cell.strip() == "" for cell in row):
-            continue
+    mapping: Dict[str, List[SalesRecord]] = {}
 
-        if index == 1 and _is_header_row(row):
-            continue
-
-        if len(row) != 4:
-            raise SalesCsvError(f"Row {index} has {len(row)} columns; expected 4")
-
-        month, product_code, price_str, units_sold_str = (cell.strip() for cell in row)
-
-        if not month or not product_code:
-            raise SalesCsvError(f"Row {index} is missing required fields")
-
+    for row in reader:
         try:
-            price = int(price_str)
-        except ValueError as exc:  # pragma: no cover - defensive guard
-            raise SalesCsvError(f"Row {index} has invalid price: {price_str}") from exc
+            month = row["month"].strip()
+            product_code = row["product_code"].strip()
+            price = int(row["price"])
+            units_sold = int(row["units_sold"])
+        except (KeyError, ValueError) as exc:
+            raise SalesCsvError(f"Invalid row in sales CSV: {row}") from exc
 
-        try:
-            units_sold = int(units_sold_str)
-        except ValueError as exc:  # pragma: no cover - defensive guard
-            raise SalesCsvError(f"Row {index} has invalid units_sold: {units_sold_str}") from exc
+        if price < 0 or units_sold < 0:
+            raise SalesCsvError(f"Negative values are not allowed in sales CSV: {row}")
 
-        record = SalesRecord(
+        rec = SalesRecord(
             month=month,
             product_code=product_code,
             price=price,
             units_sold=units_sold,
         )
-        sales_by_product[product_code].append(record)
+        mapping.setdefault(product_code, []).append(rec)
 
-    return dict(sales_by_product)
+    return mapping
