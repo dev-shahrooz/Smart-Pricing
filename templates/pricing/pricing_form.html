@@ -1,18 +1,9 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pricing Form</title>
-    <style>
-        body {
-            font-family: Arial, sans-serif;
-            background: #f5f7fa;
-            margin: 0;
-            padding: 0;
-            color: #333;
-        }
+{% extends "base.html" %}
 
+{% block title %}Pricing Form{% endblock %}
+
+{% block extra_head %}
+    <style>
         .container {
             max-width: 960px;
             margin: 32px auto;
@@ -118,8 +109,9 @@
             font-size: 13px;
         }
     </style>
-</head>
-<body>
+{% endblock %}
+
+{% block content %}
     <div class="container">
         <h1>Pricing Form</h1>
         <p class="hint">Fill in the parameters to calculate the recommended price for a product.</p>
@@ -140,61 +132,61 @@
             <fieldset>
                 <legend>Manufacturing</legend>
                 <label for="smd_cost_per_component">SMD Cost per Component (IRR)</label>
-                <input type="number" id="smd_cost_per_component" name="smd_cost_per_component" step="1" value="{{ form_values.smd_cost_per_component }}">
+                <input type="number" id="smd_cost_per_component" name="smd_cost_per_component" step="1" value="{{ form_values.smd_cost_per_component }}" required>
 
                 <label for="tht_cost_per_component">THT Cost per Component (IRR)</label>
-                <input type="number" id="tht_cost_per_component" name="tht_cost_per_component" step="1" value="{{ form_values.tht_cost_per_component }}">
+                <input type="number" id="tht_cost_per_component" name="tht_cost_per_component" step="1" value="{{ form_values.tht_cost_per_component }}" required>
 
                 <label for="assembly_time_min">Assembly Time (minutes)</label>
-                <input type="number" id="assembly_time_min" name="assembly_time_min" step="0.01" value="{{ form_values.assembly_time_min }}">
+                <input type="number" id="assembly_time_min" name="assembly_time_min" step="0.01" value="{{ form_values.assembly_time_min }}" required>
 
                 <label for="qc_test_time_min">QC/Test Time (minutes)</label>
-                <input type="number" id="qc_test_time_min" name="qc_test_time_min" step="0.01" value="{{ form_values.qc_test_time_min }}">
+                <input type="number" id="qc_test_time_min" name="qc_test_time_min" step="0.01" value="{{ form_values.qc_test_time_min }}" required>
 
                 <label for="worker_hour_cost">Worker Hour Cost (IRR)</label>
-                <input type="number" id="worker_hour_cost" name="worker_hour_cost" step="1" value="{{ form_values.worker_hour_cost }}">
+                <input type="number" id="worker_hour_cost" name="worker_hour_cost" step="1" value="{{ form_values.worker_hour_cost }}" required>
             </fieldset>
 
             <fieldset>
                 <legend>Logistics</legend>
                 <label for="shipping_cost_usd">Shipping Cost (USD)</label>
-                <input type="number" id="shipping_cost_usd" name="shipping_cost_usd" step="0.01" value="{{ form_values.shipping_cost_usd }}">
+                <input type="number" id="shipping_cost_usd" name="shipping_cost_usd" step="0.01" value="{{ form_values.shipping_cost_usd }}" required>
 
                 <label for="custom_clearance_irr">Custom Clearance (IRR)</label>
-                <input type="number" id="custom_clearance_irr" name="custom_clearance_irr" step="1" value="{{ form_values.custom_clearance_irr }}">
+                <input type="number" id="custom_clearance_irr" name="custom_clearance_irr" step="1" value="{{ form_values.custom_clearance_irr }}" required>
 
                 <label for="duty_percent">Duty Percent (%)</label>
-                <input type="number" id="duty_percent" name="duty_percent" step="0.01" value="{{ form_values.duty_percent }}">
+                <input type="number" id="duty_percent" name="duty_percent" step="0.01" value="{{ form_values.duty_percent }}" required>
 
                 <label for="exchange_rate_buy">Exchange Rate Buy (IRR)</label>
-                <input type="number" id="exchange_rate_buy" name="exchange_rate_buy" step="1" value="{{ form_values.exchange_rate_buy }}">
+                <input type="number" id="exchange_rate_buy" name="exchange_rate_buy" step="1" value="{{ form_values.exchange_rate_buy }}" required>
             </fieldset>
 
             <fieldset>
                 <legend>Inventory</legend>
                 <label for="inventory_days">Inventory Days</label>
-                <input type="number" id="inventory_days" name="inventory_days" step="1" value="{{ form_values.inventory_days }}">
+                <input type="number" id="inventory_days" name="inventory_days" step="1" value="{{ form_values.inventory_days }}" required>
 
                 <label for="capital_cost_rate">Capital Cost Rate (%)</label>
-                <input type="number" id="capital_cost_rate" name="capital_cost_rate" step="0.01" value="{{ form_values.capital_cost_rate }}">
+                <input type="number" id="capital_cost_rate" name="capital_cost_rate" step="0.01" value="{{ form_values.capital_cost_rate }}" required>
             </fieldset>
 
             <fieldset>
                 <legend>Market</legend>
                 <label for="competitor_price_avg">Competitor Price Avg (IRR)</label>
-                <input type="number" id="competitor_price_avg" name="competitor_price_avg" step="1" value="{{ form_values.competitor_price_avg }}">
+                <input type="number" id="competitor_price_avg" name="competitor_price_avg" step="1" value="{{ form_values.competitor_price_avg }}" required>
 
                 <label for="elasticity">Elasticity</label>
-                <input type="number" id="elasticity" name="elasticity" step="0.01" value="{{ form_values.elasticity }}">
+                <input type="number" id="elasticity" name="elasticity" step="0.01" value="{{ form_values.elasticity }}" required>
             </fieldset>
 
             <fieldset>
                 <legend>Finance</legend>
                 <label for="exchange_rate_now">Exchange Rate Now (IRR)</label>
-                <input type="number" id="exchange_rate_now" name="exchange_rate_now" step="1" value="{{ form_values.exchange_rate_now }}">
+                <input type="number" id="exchange_rate_now" name="exchange_rate_now" step="1" value="{{ form_values.exchange_rate_now }}" required>
 
                 <label for="target_margin_percent">Target Margin (%)</label>
-                <input type="number" id="target_margin_percent" name="target_margin_percent" step="0.01" value="{{ form_values.target_margin_percent }}">
+                <input type="number" id="target_margin_percent" name="target_margin_percent" step="0.01" value="{{ form_values.target_margin_percent }}" required>
             </fieldset>
 
             <button type="submit">Compute Price</button>
@@ -242,5 +234,4 @@
         </div>
         {% endif %}
     </div>
-</body>
-</html>
+{% endblock %}
