@@ -11,7 +11,7 @@ from .pricing_engine import (
     compute_recommended_price,
     simulate_prices_for_exchange_rates,
 )
-from .state import BOM_STORE
+from .state import BOM_STORE, get_all_product_codes, set_bom_store
 
 
 def ai_insights_view(request):
@@ -20,14 +20,7 @@ def ai_insights_view(request):
     For now, the GET handler just shows the template with product codes (if any).
     Later we will extend POST to run ML logic.
     """
-    product_codes = []
-    try:
-        from .state import get_all_product_codes
-
-        product_codes = get_all_product_codes()
-    except Exception:
-        # If state or BOM is not available yet, keep an empty list
-        product_codes = []
+    product_codes = get_all_product_codes()
 
     if request.method == "GET":
         return render(
@@ -67,13 +60,12 @@ def bom_upload_view(request):
             except BomCsvError as exc:
                 messages.error(request, str(exc))
             else:
-                BOM_STORE.clear()
                 grouped_items: dict[str, list[BomItem]] = defaultdict(list)
                 for item in bom_items:
                     grouped_items[item.product_code].append(item)
 
-                BOM_STORE.update(grouped_items)
-                context["product_codes"] = sorted(grouped_items.keys())
+                set_bom_store(grouped_items)
+                context["product_codes"] = get_all_product_codes()
                 messages.success(request, "BOM uploaded successfully.")
 
     return render(request, "pricing/bom_upload.html", context)
@@ -81,7 +73,7 @@ def bom_upload_view(request):
 
 def pricing_form_view(request):
     context: dict[str, object] = {
-        "product_codes": sorted(BOM_STORE.keys()),
+        "product_codes": get_all_product_codes(),
         "form_values": {},
     }
 
@@ -206,7 +198,7 @@ def pricing_form_view(request):
 
 def scenario_view(request):
     context: dict[str, object] = {
-        "product_codes": sorted(BOM_STORE.keys()),
+        "product_codes": get_all_product_codes(),
         "form_values": {},
         "scenario_results": [],
         "exchange_rates_raw": "",
