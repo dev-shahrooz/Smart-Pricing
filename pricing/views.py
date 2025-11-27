@@ -173,7 +173,8 @@ def pricing_form_view(request):
                         "selected_product_code": product_code,
                         "cost_breakdown": cost_breakdown,
                         "total_cost": cost_breakdown.total_cost_irr,
-                        "recommended_price": recommended_price,
+                        "recommended_price": recommended_price["final_suggested_price"],
+                        "recommended_price_details": recommended_price,
                         "form_values": request.POST,
                     }
                 )

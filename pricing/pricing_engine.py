@@ -6,6 +6,7 @@ from typing import Iterable
 from .domain_models import (
     BomItem,
     CostBreakdown,
+    ElasticityResult,
     FinanceParams,
     InventoryParams,
     LogisticsParams,
@@ -57,13 +58,53 @@ def compute_recommended_price(
     cost_breakdown: CostBreakdown,
     finance: FinanceParams,
     market: MarketParams,
-) -> float:
-    """Calculate a recommended sales price in IRR."""
+    elasticity_result: ElasticityResult | None = None,
+) -> dict[str, float]:
+    """Calculate pricing recommendations and related metrics."""
 
     base_price = cost_breakdown.total_cost_irr * (1 + finance.target_margin_percent / 100)
     competitor_anchor = market.competitor_price_avg if market.competitor_price_avg else 0
 
-    return max(base_price, competitor_anchor)
+    cost_plus_price = max(base_price, competitor_anchor)
+
+    result: dict[str, float] = {"cost_plus_price": cost_plus_price}
+
+    merge_result = merge_cost_plus_and_ml_price(cost_plus_price, elasticity_result)
+    result.update(merge_result)
+
+    if elasticity_result is not None:
+        result.update(
+            {
+                "elasticity": elasticity_result.elasticity,
+                "optimal_price_ml": elasticity_result.optimal_price_ml,
+                "max_profit_ml": elasticity_result.max_profit_ml,
+            }
+        )
+
+    return result
+
+
+def merge_cost_plus_and_ml_price(
+    cost_plus_price: float, elasticity_result: ElasticityResult | None
+) -> dict[str, float]:
+    """
+    Return a dict with:
+    - 'cost_plus_price'
+    - 'optimal_price_ml' (if elasticity_result is not None)
+    - 'final_suggested_price'
+      (for now, you can choose average of the two or prefer ML).
+    """
+
+    result: dict[str, float] = {"cost_plus_price": cost_plus_price}
+
+    if elasticity_result is None:
+        result["final_suggested_price"] = cost_plus_price
+        return result
+
+    result["optimal_price_ml"] = elasticity_result.optimal_price_ml
+    result["final_suggested_price"] = (cost_plus_price + elasticity_result.optimal_price_ml) / 2
+
+    return result
 
 
 def simulate_prices_for_exchange_rates(
@@ -100,18 +141,18 @@ def simulate_prices_for_exchange_rates(
             inventory=inventory,
         )
 
-        recommended_price = compute_recommended_price(
+        recommended_price_data = compute_recommended_price(
             cost_breakdown=cost_breakdown,
             finance=finance_at_rate,
             market=market,
         )
 
         results.append(
-            ScenarioResult(
-                exchange_rate=rate,
-                total_cost_irr=cost_breakdown.total_cost_irr,
-                recommended_price_irr=recommended_price,
-            )
+                ScenarioResult(
+                    exchange_rate=rate,
+                    total_cost_irr=cost_breakdown.total_cost_irr,
+                    recommended_price_irr=recommended_price_data["final_suggested_price"],
+                )
         )
 
     return results
@@ -120,5 +161,6 @@ def simulate_prices_for_exchange_rates(
 __all__ = [
     "compute_cost_breakdown",
     "compute_recommended_price",
+    "merge_cost_plus_and_ml_price",
     "simulate_prices_for_exchange_rates",
 ]

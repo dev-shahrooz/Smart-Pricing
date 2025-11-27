@@ -45,6 +45,13 @@ class FinanceParams:
 
 
 @dataclass
+class ElasticityResult:
+    elasticity: float
+    optimal_price_ml: float
+    max_profit_ml: float
+
+
+@dataclass
 class BomItem:
     product_code: str
     part_name: str
