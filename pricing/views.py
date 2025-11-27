@@ -11,7 +11,6 @@ from .domain_models import (
     InventoryParams,
     LogisticsParams,
     ManufacturingParams,
-    MarketParams,
 )
 from .ml.demand_elasticity import (
     ElasticityResult,
@@ -420,15 +419,6 @@ def ai_insights_view(request):
                         ),
                     )
 
-                    market_params = MarketParams(
-                        competitor_price_avg=_require_int(
-                            request.POST.get("competitor_price_avg")
-                            or "0",
-                            "Competitor price avg",
-                        ),
-                        elasticity=None,
-                    )
-
                     finance_params = FinanceParams(
                         exchange_rate_now=_require_int(
                             request.POST.get("exchange_rate_now"),
@@ -437,6 +427,10 @@ def ai_insights_view(request):
                         target_margin_percent=_require_float(
                             request.POST.get("target_margin_percent"),
                             "Target margin percent",
+                        ),
+                        competitor_price_avg=_require_int(
+                            request.POST.get("competitor_price_avg") or "0",
+                            "Competitor price avg",
                         ),
                     )
                 except ValueError as exc:
@@ -452,7 +446,6 @@ def ai_insights_view(request):
                     recommended_details = compute_recommended_price(
                         cost_breakdown=cost_breakdown,
                         finance=finance_params,
-                        market=market_params,
                     )
 
                     elasticity_result: ElasticityResult | None = None
