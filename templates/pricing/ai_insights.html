@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}AI Pricing Insights{% endblock %}
+
+{% block extra_head %}
+    <style>
+        .container {
+            max-width: 960px;
+            margin: 32px auto;
+            background: #fff;
+            padding: 24px;
+            border-radius: 8px;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        form {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
+            margin-top: 16px;
+        }
+
+        fieldset, .group {
+            border: 1px solid #e0e0e0;
+            padding: 16px;
+            border-radius: 6px;
+            background: #fafafa;
+        }
+
+        legend, .group h2 {
+            font-size: 16px;
+            margin: 0 0 12px 0;
+            font-weight: bold;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 6px;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
+        }
+
+        button {
+            grid-column: 1 / -1;
+            background-color: #0a7cff;
+            color: #fff;
+            border: none;
+            padding: 12px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+
+        button:hover {
+            background-color: #0066d6;
+        }
+
+        .results {
+            margin-top: 24px;
+            border-top: 1px solid #e0e0e0;
+            padding-top: 16px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 16px;
+        }
+
+        .stat-box {
+            background: #f0f7ff;
+            border: 1px solid #c9e1ff;
+            padding: 16px;
+            border-radius: 6px;
+        }
+
+        .stat-title {
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: #1a3d7c;
+            margin: 0 0 6px 0;
+        }
+
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #0a4e8c;
+        }
+
+        .chart-section {
+            margin-top: 24px;
+            padding: 16px;
+            background: #fafafa;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+    <div class="container">
+        <h1>AI Pricing Insights</h1>
+        <form method="post" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div class="group">
+                <h2>Product</h2>
+                <label for="product_code">Product Code</label>
+                <select id="product_code" name="product_code" required>
+                    <option value="">Select a product</option>
+                    {% for code in product_codes %}
+                        <option value="{{ code }}" {% if form_values.product_code == code or selected_product_code == code %}selected{% endif %}>{{ code }}</option>
+                    {% endfor %}
+                </select>
+
+                <label for="sales_file" style="margin-top:12px;">Sales History CSV</label>
+                <input type="file" id="sales_file" name="sales_file" accept=".csv">
+            </div>
+
+            <fieldset>
+                <legend>Production</legend>
+                <label for="worker_hour_cost">Worker Hour Cost (IRR)</label>
+                <input type="number" id="worker_hour_cost" name="worker_hour_cost" step="1" value="{{ form_values.worker_hour_cost }}" required>
+
+                <label for="assembly_time">Assembly Time (minutes)</label>
+                <input type="number" id="assembly_time" name="assembly_time" step="0.01" value="{{ form_values.assembly_time }}" required>
+
+                <label for="qc_time">QC/Test Time (minutes)</label>
+                <input type="number" id="qc_time" name="qc_time" step="0.01" value="{{ form_values.qc_time }}" required>
+            </fieldset>
+
+            <fieldset>
+                <legend>Logistics</legend>
+                <label for="shipping_cost_usd">Shipping Cost (USD)</label>
+                <input type="number" id="shipping_cost_usd" name="shipping_cost_usd" step="0.01" value="{{ form_values.shipping_cost_usd }}" required>
+
+                <label for="custom_clearance_irr">Custom Clearance (IRR)</label>
+                <input type="number" id="custom_clearance_irr" name="custom_clearance_irr" step="1" value="{{ form_values.custom_clearance_irr }}" required>
+
+                <label for="exchange_rate_buy">Exchange Rate Buy (IRR)</label>
+                <input type="number" id="exchange_rate_buy" name="exchange_rate_buy" step="1" value="{{ form_values.exchange_rate_buy }}" required>
+            </fieldset>
+
+            <fieldset>
+                <legend>Finance</legend>
+                <label for="inventory_days">Inventory Days</label>
+                <input type="number" id="inventory_days" name="inventory_days" step="1" value="{{ form_values.inventory_days }}" required>
+
+                <label for="capital_cost_rate">Capital Cost Rate (%)</label>
+                <input type="number" id="capital_cost_rate" name="capital_cost_rate" step="0.01" value="{{ form_values.capital_cost_rate }}" required>
+
+                <label for="target_margin_percent">Target Margin (%)</label>
+                <input type="number" id="target_margin_percent" name="target_margin_percent" step="0.01" value="{{ form_values.target_margin_percent }}" required>
+            </fieldset>
+
+            <button type="submit">Generate Insights</button>
+        </form>
+
+        {% if pricing_result %}
+            <div class="results">
+                <div class="stat-box">
+                    <p class="stat-title">Cost-Plus Price</p>
+                    <p class="stat-value">{{ pricing_result.cost_plus_price|floatformat:0 }}</p>
+                </div>
+                <div class="stat-box">
+                    <p class="stat-title">Final Suggested Price</p>
+                    <p class="stat-value">{{ pricing_result.final_price|floatformat:0 }}</p>
+                </div>
+                {% if pricing_result.ml_available %}
+                    <div class="stat-box">
+                        <p class="stat-title">Elasticity</p>
+                        <p class="stat-value">{{ pricing_result.elasticity|floatformat:2 }}</p>
+                    </div>
+                    <div class="stat-box">
+                        <p class="stat-title">ML Optimal Price</p>
+                        <p class="stat-value">{{ pricing_result.ml_optimal_price|floatformat:0 }}</p>
+                    </div>
+                    <div class="stat-box">
+                        <p class="stat-title">Max Profit</p>
+                        <p class="stat-value">{{ pricing_result.max_profit|floatformat:0 }}</p>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if price_grid and profit_grid %}
+            <div class="chart-section">
+                <h2>Profit Projection</h2>
+                {% with price_grid|json_script:"price-grid" as price_json %}{% endwith %}
+                {% with profit_grid|json_script:"profit-grid" as profit_json %}{% endwith %}
+                <canvas id="profitChart" width="400" height="220"></canvas>
+            </div>
+            <script>
+                const priceData = JSON.parse(document.getElementById('price-grid').textContent);
+                const profitData = JSON.parse(document.getElementById('profit-grid').textContent);
+
+                const ctx = document.getElementById('profitChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: priceData,
+                        datasets: [{
+                            label: 'Profit',
+                            data: profitData,
+                            borderColor: '#0a7cff',
+                            backgroundColor: 'rgba(10, 124, 255, 0.1)',
+                            tension: 0.25,
+                            fill: true,
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        scales: {
+                            x: {
+                                title: {
+                                    display: true,
+                                    text: 'Price'
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: 'Profit'
+                                }
+                            }
+                        }
+                    }
+                });
+            </script>
+        {% endif %}
+    </div>
+{% endblock %}
