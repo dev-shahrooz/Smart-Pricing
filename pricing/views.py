@@ -335,7 +335,7 @@ def ai_insights_view(request):
     """
     context: dict[str, object] = {
         "product_codes": get_all_product_codes(),
-        "form_values": {},
+        "form_values": {"use_regularization": "on"},
         "elasticity_result": None,
         "cost_breakdown": None,
         "recommended_price": None,
@@ -356,8 +356,13 @@ def ai_insights_view(request):
 
     if request.method == "POST":
         product_code = request.POST.get("product_code") or ""
-        context["form_values"] = request.POST
+        context["form_values"] = request.POST.copy()
         context["selected_product_code"] = product_code
+
+        use_regularization = request.POST.get("use_regularization") == "on"
+        regularization_strength = 0.1
+        elasticity_bounds = (-3.0, -0.3)
+        context["form_values"]["use_regularization"] = "on" if use_regularization else ""
 
         if not product_code:
             messages.error(request, "Please select a product code.")
@@ -457,9 +462,13 @@ def ai_insights_view(request):
                             sales_mapping = load_sales_from_csv(sales_file)
                             records = sales_mapping.get(product_code, [])
                             if records:
-                                model = fit_elasticity_for_product(records)
-                                # Approximate cost per unit from cost breakdown / units ~= 1
-                                # For a first version, we assume cost per unit = cost_breakdown.total_cost_irr
+                                model = fit_elasticity_for_product(
+                                    records,
+                                    regularization_strength=regularization_strength
+                                    if use_regularization
+                                    else 0.0,
+                                    elasticity_bounds=elasticity_bounds,
+                                )
                                 elasticity_result = compute_optimal_price(
                                     model,
                                     cost_per_unit=cost_breakdown.total_cost_irr,

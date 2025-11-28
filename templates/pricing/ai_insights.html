@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load pricing_extras %}
 
 {% block title %}AI Pricing Insights{% endblock %}
 
@@ -88,6 +89,21 @@
     th {
         background: #f7f7f7;
         text-align: center;
+    }
+    .badge-ml {
+        display: inline-block;
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 11px;
+        margin-left: 4px;
+    }
+    .badge-high { background:#d4f4dd; color:#256b2b; }
+    .badge-medium { background:#fff4cc; color:#8a6d1f; }
+    .badge-low { background:#ffe0e0; color:#a94442; }
+    .heatmap-table th,
+    .heatmap-table td {
+        font-size: 11px;
+        padding: 3px 4px;
     }
 </style>
 {% endblock %}
@@ -188,6 +204,15 @@
             <input type="file" id="sales_file" name="sales_file" accept=".csv">
         </fieldset>
 
+        <fieldset class="full-width">
+            <legend>Model Options</legend>
+            <label>
+                <input type="checkbox" name="use_regularization"
+                       {% if form_values.use_regularization|default_if_none:"on" == "on" %}checked{% endif %}>
+                Use regularized elasticity estimation (recommended)
+            </label>
+        </fieldset>
+
         <div class="full-width">
             <button type="submit">Compute AI Insights</button>
         </div>
@@ -228,9 +253,39 @@
                 <p><strong>Warning:</strong> ML found no profitable price in the observed range.</p>
             {% endif %}
             <p>
-                Elasticity: <strong>{{ elasticity_result.elasticity|floatformat:2 }}</strong><br>
-                ML Optimal Price: <strong>{{ elasticity_result.optimal_price|floatformat:0 }}</strong> IRR<br>
-                Max Profit (approx): <strong>{{ elasticity_result.max_profit|floatformat:0 }}</strong> IRR
+                Elasticity:
+                <strong>{{ elasticity_result.elasticity|floatformat:2 }}</strong>
+                {% if elasticity_result.elasticity_ci %}
+                    <small>
+                        (95% CI:
+                        {{ elasticity_result.elasticity_ci.0|floatformat:2 }}
+                        to
+                        {{ elasticity_result.elasticity_ci.1|floatformat:2 }})
+                    </small>
+                {% endif %}
+                <br>
+
+                ML Optimal Price:
+                <strong>{{ elasticity_result.optimal_price|floatformat:0 }}</strong> IRR
+                {% if elasticity_result.optimal_price_ci %}
+                    <small>
+                        (range:
+                        {{ elasticity_result.optimal_price_ci.0|floatformat:0 }}
+                        – {{ elasticity_result.optimal_price_ci.1|floatformat:0 }})
+                    </small>
+                {% endif %}
+                <br>
+
+                Max Profit (approx):
+                <strong>{{ elasticity_result.max_profit|floatformat:0 }}</strong> IRR
+                <br>
+
+                {% if elasticity_result.confidence_level %}
+                    Model confidence:
+                    <span class="badge-ml badge-{{ elasticity_result.confidence_level }}">
+                        {{ elasticity_result.confidence_level|title }}
+                    </span>
+                {% endif %}
             </p>
 
             {% if price_grid and profit_grid %}
@@ -312,6 +367,48 @@
                     ctx.fillText("Profit (IRR)", 0, 0);
                     ctx.restore();
                 </script>
+            {% endif %}
+
+            {% if elasticity_result.sensitivity_matrix and elasticity_result.cost_factors %}
+                <h3>Price Sensitivity Surface</h3>
+                <p class="hint">
+                    Rows show different cost scenarios (e.g. -10%, base, +10%, +20%).
+                    Columns are prices across the grid. Color indicates profit level.
+                </p>
+                <div style="overflow-x:auto;">
+                    <table class="heatmap-table">
+                        <thead>
+                            <tr>
+                                <th>Cost Factor</th>
+                                {% for p in elasticity_result.price_grid %}
+                                    {% if forloop.counter0|divisibleby:5 %}
+                                        <th>{{ p|floatformat:0 }}</th>
+                                    {% endif %}
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row, factor in elasticity_result.sensitivity_matrix|zip_lists:elasticity_result.cost_factors %}
+                                <tr>
+                                    <td>{{ factor|floatformat:2 }}</td>
+                                    {% for cell in row %}
+                                        {% if forloop.counter0|divisibleby:5 %}
+                                            {% with v=cell %}
+                                                {% if v < 0 %}
+                                                    <td style="background:#ffe0e0;">{{ v|floatformat:0 }}</td>
+                                                {% elif v < elasticity_result.max_profit|multiply:0.5 %}
+                                                    <td style="background:#fff7cc;">{{ v|floatformat:0 }}</td>
+                                                {% else %}
+                                                    <td style="background:#d7f7d7;">{{ v|floatformat:0 }}</td>
+                                                {% endif %}
+                                            {% endwith %}
+                                        {% endif %}
+                                    {% endfor %}
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
             {% endif %}
         {% endif %}
     </div>
