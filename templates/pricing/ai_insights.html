@@ -75,10 +75,15 @@
         padding: 12px;
         margin-bottom: 16px;
     }
+    .hint {
+        font-size: 12px;
+        color: #666;
+    }
     table {
         width: 100%;
         border-collapse: collapse;
         margin-top: 12px;
+        font-size: 12px;
     }
     th, td {
         border: 1px solid #ddd;
@@ -196,6 +201,21 @@
             <label for="target_margin_percent">Target Margin (%)</label>
             <input type="number" id="target_margin_percent" name="target_margin_percent" step="0.1"
                    value="{{ form_values.target_margin_percent }}" required>
+        </fieldset>
+
+        <fieldset class="full-width">
+            <legend>FX Forecast (USD/IRR)</legend>
+
+            <label for="fx_forecast_days">Forecast Horizon (days)</label>
+            <input type="number" id="fx_forecast_days" name="fx_forecast_days"
+                   min="0" step="1"
+                   value="{{ form_values.fx_forecast_days|default:30 }}">
+
+            <label for="fx_file">FX History CSV (date,usd_irr)</label>
+            <input type="file" id="fx_file" name="fx_file" accept=".csv">
+            <p class="hint">
+                Example rows: 2024-01-01,600000; 2024-01-02,602000; …
+            </p>
         </fieldset>
 
         <fieldset class="full-width">
@@ -409,6 +429,127 @@
                         </tbody>
                     </table>
                 </div>
+            {% endif %}
+
+            {% if fx_forecast and future_price_points %}
+                <h2>USD Forecast & Future Pricing</h2>
+                <p class="hint">
+                    FX trend is estimated from the uploaded history. Future costs and prices assume
+                    the same BOM and parameters, with only the FX rate changing.
+                </p>
+
+                <p>
+                    FX Trend R²: <strong>{{ fx_forecast.r2|floatformat:2 }}</strong><br>
+                    Slope: <strong>{{ fx_forecast.slope|floatformat:2 }}</strong> IRR per day
+                </p>
+
+                <h3>Forecast Table</h3>
+                <div style="overflow-x:auto;">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>FX (IRR/USD)</th>
+                                <th>FX Low</th>
+                                <th>FX High</th>
+                                <th>Total Cost (IRR)</th>
+                                <th>Cost-plus Price (IRR)</th>
+                                <th>Final Suggested Price (IRR)</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for point in future_price_points %}
+                                <tr>
+                                    <td style="text-align:left;">{{ point.date }}</td>
+                                    <td>{{ point.fx_rate|floatformat:0 }}</td>
+                                    <td>{{ point.fx_low|floatformat:0 }}</td>
+                                    <td>{{ point.fx_high|floatformat:0 }}</td>
+                                    <td>{{ point.total_cost|floatformat:0 }}</td>
+                                    <td>{{ point.base_price|floatformat:0 }}</td>
+                                    <td>{{ point.final_price|floatformat:0 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <h3>FX & Price Over Time</h3>
+                <canvas id="fxChart" width="600" height="260"></canvas>
+                <script>
+                    (function() {
+                        const fxData = {{ fx_chart_json|safe }} || {};
+                        const fxRates = fxData.rates || [];
+                        const dates = fxData.dates || [];
+                        const prices = fxData.prices || [];
+
+                        const canvas = document.getElementById("fxChart");
+                        if (!canvas || fxRates.length === 0) return;
+                        const ctx = canvas.getContext("2d");
+
+                        const W = canvas.width;
+                        const H = canvas.height;
+                        const padLeft = 40, padRight = 20, padTop = 20, padBottom = 30;
+
+                        const minFx = Math.min(...fxRates);
+                        const maxFx = Math.max(...fxRates);
+                        const minPrice = Math.min(...prices);
+                        const maxPrice = Math.max(...prices);
+
+                        function xScale(i) {
+                            const n = fxRates.length;
+                            return padLeft + (i / Math.max(n - 1, 1)) * (W - padLeft - padRight);
+                        }
+
+                        function yScaleFx(v) {
+                            return H - padBottom - (v - minFx) / (maxFx - minFx + 1e-9) * (H - padTop - padBottom);
+                        }
+
+                        function yScalePrice(v) {
+                            return H - padBottom - (v - minPrice) / (maxPrice - minPrice + 1e-9) * (H - padTop - padBottom);
+                        }
+
+                        ctx.clearRect(0, 0, W, H);
+
+                        // Axes
+                        ctx.strokeStyle = "#444";
+                        ctx.beginPath();
+                        ctx.moveTo(padLeft, padTop);
+                        ctx.lineTo(padLeft, H - padBottom);
+                        ctx.lineTo(W - padRight, H - padBottom);
+                        ctx.stroke();
+
+                        // FX line (blue)
+                        ctx.strokeStyle = "#0070f3";
+                        ctx.beginPath();
+                        fxRates.forEach((v, i) => {
+                            const x = xScale(i);
+                            const y = yScaleFx(v);
+                            if (i === 0) ctx.moveTo(x, y);
+                            else ctx.lineTo(x, y);
+                        });
+                        ctx.stroke();
+
+                        // Price line (green)
+                        ctx.strokeStyle = "#2ecc71";
+                        ctx.beginPath();
+                        prices.forEach((v, i) => {
+                            const x = xScale(i);
+                            const y = yScalePrice(v);
+                            if (i === 0) ctx.moveTo(x, y);
+                            else ctx.lineTo(x, y);
+                        });
+                        ctx.stroke();
+
+                        ctx.fillStyle = "#000";
+                        ctx.font = "11px sans-serif";
+                        ctx.fillText("Time (days)", W / 2 - 30, H - 10);
+                        ctx.save();
+                        ctx.translate(10, H / 2);
+                        ctx.rotate(-Math.PI / 2);
+                        ctx.fillText("FX / Price", 0, 0);
+                        ctx.restore();
+                    })();
+                </script>
             {% endif %}
         {% endif %}
     </div>

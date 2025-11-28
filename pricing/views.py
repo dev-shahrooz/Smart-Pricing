@@ -1,4 +1,5 @@
 from collections import defaultdict
+import json
 from typing import List
 
 from django.contrib import messages
@@ -17,11 +18,13 @@ from .ml.demand_elasticity import (
     compute_optimal_price,
     fit_elasticity_for_product,
 )
+from .ml.fx_forecast import FxForecastResult, forecast_fx
 from .pricing_engine import (
     compute_cost_breakdown,
     compute_recommended_price,
     simulate_prices_for_exchange_rates,
 )
+from .services.fx_csv_loader import FxCsvError, load_fx_history_from_csv
 from .services.sales_csv_loader import SalesCsvError, load_sales_from_csv
 from .state import BOM_STORE, get_all_product_codes, get_bom_for_product, set_bom_store
 
@@ -342,6 +345,9 @@ def ai_insights_view(request):
         "final_suggested_price": None,
         "price_grid": [],
         "profit_grid": [],
+        "fx_forecast": None,
+        "future_price_points": [],
+        "fx_chart_json": "{}",
     }
 
     def _require_int(value: str | None, field_name: str) -> int:
@@ -438,6 +444,12 @@ def ai_insights_view(request):
                             "Competitor price avg",
                         ),
                     )
+
+                    fx_horizon_str = request.POST.get("fx_forecast_days") or ""
+                    try:
+                        fx_horizon_days = int(fx_horizon_str) if fx_horizon_str else 0
+                    except ValueError:
+                        fx_horizon_days = 0
                 except ValueError as exc:
                     messages.error(request, str(exc))
                 else:
@@ -454,6 +466,8 @@ def ai_insights_view(request):
                     )
 
                     elasticity_result: ElasticityResult | None = None
+                    fx_forecast_result: FxForecastResult | None = None
+                    future_price_points: list[dict] = []
 
                     # Optional: sales CSV for ML
                     sales_file = request.FILES.get("sales_file")
@@ -501,6 +515,78 @@ def ai_insights_view(request):
                                 base_recommended_price + elasticity_result.optimal_price
                             ) / 2
 
+                    fx_file = request.FILES.get("fx_file")
+                    fx_chart_json = "{}"
+                    if fx_file and fx_horizon_days > 0:
+                        try:
+                            fx_points = load_fx_history_from_csv(fx_file)
+                            fx_forecast_result = forecast_fx(
+                                fx_points, horizon_days=fx_horizon_days
+                            )
+
+                            for date, rate, low, high in zip(
+                                fx_forecast_result.forecast_dates,
+                                fx_forecast_result.forecast_rates,
+                                fx_forecast_result.forecast_low,
+                                fx_forecast_result.forecast_high,
+                            ):
+                                logistics_future = LogisticsParams(
+                                    shipping_cost_usd=logistics_params.shipping_cost_usd,
+                                    custom_clearance_irr=logistics_params.custom_clearance_irr,
+                                    duty_percent=logistics_params.duty_percent,
+                                    exchange_rate_buy=int(rate),
+                                )
+                                finance_future = FinanceParams(
+                                    exchange_rate_now=int(rate),
+                                    target_margin_percent=finance_params.target_margin_percent,
+                                    competitor_price_avg=finance_params.competitor_price_avg,
+                                )
+
+                                cb_future = compute_cost_breakdown(
+                                    bom_items=bom_items,
+                                    manufacturing=manufacturing_params,
+                                    logistics=logistics_future,
+                                    inventory=inventory_params,
+                                )
+                                base_price_future_details = compute_recommended_price(
+                                    cost_breakdown=cb_future,
+                                    finance=finance_future,
+                                )
+                                base_price_future = base_price_future_details.get(
+                                    "final_suggested_price", 0
+                                )
+
+                                if elasticity_result is not None:
+                                    final_future = (
+                                        base_price_future + elasticity_result.optimal_price
+                                    ) / 2.0
+                                else:
+                                    final_future = base_price_future
+
+                                future_price_points.append(
+                                    {
+                                        "date": date,
+                                        "fx_rate": rate,
+                                        "fx_low": low,
+                                        "fx_high": high,
+                                        "base_price": base_price_future,
+                                        "final_price": final_future,
+                                        "total_cost": cb_future.total_cost_irr,
+                                    }
+                                )
+
+                            fx_chart_json = json.dumps(
+                                {
+                                    "dates": [d.isoformat() for d in fx_forecast_result.forecast_dates],
+                                    "rates": fx_forecast_result.forecast_rates,
+                                    "prices": [p["final_price"] for p in future_price_points],
+                                }
+                            )
+                        except FxCsvError as exc:
+                            messages.error(request, f"FX CSV error: {exc}")
+                        except ValueError as exc:
+                            messages.error(request, f"Could not forecast FX: {exc}")
+
                     context.update(
                         {
                             "cost_breakdown": cost_breakdown,
@@ -509,6 +595,9 @@ def ai_insights_view(request):
                             ),
                             "final_suggested_price": final_price,
                             "elasticity_result": elasticity_result,
+                            "fx_forecast": fx_forecast_result,
+                            "future_price_points": future_price_points,
+                            "fx_chart_json": fx_chart_json,
                         }
                     )
 
